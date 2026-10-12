@@ -177,7 +177,7 @@ import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, q
 const CLASSIFY_ENDPOINT = "";
 /* URL de la Cloud Function que escribe la crónica de cada combate con IA (ver functions/index.js).
    Vacía: se usa un narrador local sin IA. */
-const NARRATE_ENDPOINT = "";
+const NARRATE_ENDPOINT = "/.netlify/functions/narrar";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCZwM7gMXFzkpMjblrWyQb9YXXprsul8uQ",
