@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OC Arena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=Figtree:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#15111d; --panel:#201a2b; --panel-2:#2a2238; --line:#3a3050;
+  --text:#f3eefb; --muted:#a59bb9;
+  --a:#5eead4; --b:#f472b6; --danger:#fb7185;
+  --display:'Bricolage Grotesque','Trebuchet MS',sans-serif;
+  --body:'Figtree','Segoe UI',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--body);line-height:1.5;min-height:100vh}
+:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+header{padding:28px 20px 0;max-width:1000px;margin:0 auto}
+header h1{font-family:var(--display);font-weight:800;font-size:clamp(2rem,6vw,3.2rem);letter-spacing:-.02em}
+header h1 span{color:var(--a)}
+header p{color:var(--muted);margin-top:4px}
+nav{display:flex;gap:6px;margin-top:22px;border-bottom:1px solid var(--line);overflow-x:auto}
+.nav-btn{background:none;border:0;border-bottom:3px solid transparent;color:var(--muted);padding:12px 16px;font:600 1rem var(--body);cursor:pointer;white-space:nowrap}
+.nav-btn:hover{color:var(--text)}
+.nav-btn.active{color:var(--text);border-bottom-color:var(--a)}
+main{max-width:1000px;margin:0 auto;padding:28px 20px 60px}
+.panel{display:none}.panel.active{display:block}
+h2{font-family:var(--display);font-size:1.5rem;margin-bottom:6px}
+.sub{color:var(--muted);margin-bottom:20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px}
+.form-group{margin-bottom:16px}
+label{display:block;font-size:.9rem;color:var(--muted);margin-bottom:6px}
+input,textarea,select{width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:1rem var(--body)}
+textarea{min-height:120px;resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:600px){.row{grid-template-columns:1fr}}
+button.btn{padding:12px 18px;border:0;border-radius:8px;background:var(--a);color:#06231f;font:700 1rem var(--body);cursor:pointer}
+button.btn:hover{filter:brightness(1.08)}
+button.btn:disabled{opacity:.5;cursor:wait}
+button.btn.ghost{background:var(--panel-2);color:var(--text)}
+button.btn.danger{background:var(--danger);color:#2a0710}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+.oc{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.oc img{width:100%;height:190px;object-fit:cover;background:var(--panel-2)}
+.oc .body{padding:14px;display:flex;flex-direction:column;gap:6px;flex:1}
+.oc h3{font-family:var(--display);font-size:1.15rem}
+.tag{display:inline-block;align-self:flex-start;background:var(--panel-2);color:var(--a);padding:2px 10px;border-radius:99px;font-size:.8rem;font-weight:600}
+.meta{color:var(--muted);font-size:.85rem}
+.verdict{font-size:.85rem;font-style:italic;color:var(--muted)}
+.stat{display:grid;grid-template-columns:34px 1fr 28px;align-items:center;gap:8px;font-size:.8rem;color:var(--muted)}
+.bar{height:6px;background:var(--bg);border-radius:9px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--a);border-radius:9px}
+.power{font-weight:700;color:var(--text)}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag.rank{color:var(--text)}
+.cronica{margin-top:20px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;display:grid;gap:12px}
+.cronica p{max-width:70ch}
+.tag.hab{background:none;border:1px solid var(--line);color:var(--text);font-weight:400}
+.radar{width:100%;max-width:280px;display:block;margin:6px auto}
+.radar .ring{fill:none;stroke:var(--line);stroke-width:1}
+.radar .lbl{fill:var(--muted);font:600 11px var(--body)}
+.radar .val{fill:var(--text);font-weight:700}
+.radar .shape{fill-opacity:.25;stroke-width:2;stroke-linejoin:round}
+.radar .shape.a{fill:var(--a);stroke:var(--a)} .radar .shape.b{fill:var(--b);stroke:var(--b)}
+.radar .dot.a{fill:var(--a)} .radar .dot.b{fill:var(--b)}
+.legend{display:flex;justify-content:center;gap:20px;font-weight:600;margin-top:24px}
+.legend span::before{content:'';display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:var(--a)}
+.legend .b::before{background:var(--b)}
+details.card{margin-top:16px;color:var(--muted)} details summary{cursor:pointer;color:var(--text);font-weight:600}
+details ol{margin:12px 0 0 20px;display:grid;gap:6px}
+/* Arena */
+.arena{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:stretch}
+@media(max-width:700px){.arena{grid-template-columns:1fr}}
+.slot{min-height:300px;display:flex;flex-direction:column;gap:12px}
+.slot.b .bar i{background:var(--b)} .slot.b .tag{color:var(--b)}
+.vs{align-self:center;font-family:var(--display);font-weight:800;font-size:2.4rem;color:var(--muted)}
+.winner{outline:3px solid var(--a)} .slot.b .winner{outline-color:var(--b)}
+.log{margin-top:20px;display:grid;gap:8px}
+.log p{background:var(--panel-2);border-radius:8px;padding:10px 14px;font-size:.95rem}
+.result{margin-top:20px;text-align:center;font-family:var(--display);font-size:1.6rem}
+.empty{color:var(--muted);padding:30px 0;text-align:center}
+.edit-item{display:grid;gap:10px;margin-top:16px}
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--panel-2);border:1px solid var(--line);padding:12px 18px;border-radius:10px;opacity:0;pointer-events:none;transition:.25s;z-index:9;max-width:90vw}
+#toast.show{opacity:1;transform:translateX(-50%)}
+#toast.err{border-color:var(--danger)}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <h1>OC <span>Arena</span></h1>
+  <p>Crea tu personaje, deja que la IA lo evalúe y haz que combata.</p>
+  <nav role="tablist">
+    <button class="nav-btn active" data-tab="crear">Crear OC</button>
+    <button class="nav-btn" data-tab="batallar">Combatir</button>
+    <button class="nav-btn" data-tab="galeria">Galería</button>
+    <button class="nav-btn" data-tab="editar">Mis OCs</button>
+  </nav>
+</header>
+
+<main>
+  <section id="crear" class="panel active">
+    <h2>Crear personaje</h2>
+    <p class="sub">El juez lee la descripción y reparte puntos en seis atributos.</p>
+    <form id="formCrear" class="card">
+      <div class="row">
+        <div class="form-group"><label for="inputUsuario">Tu nombre de usuario</label><input id="inputUsuario" maxlength="30" placeholder="Alex_Player" required></div>
+        <div class="form-group"><label for="inputPassword">Contraseña para editar después</label><input id="inputPassword" type="password" minlength="4" placeholder="Mínimo 4 caracteres" required></div>
+      </div>
+      <div class="row">
+        <div class="form-group"><label for="inputNombreOC">Nombre del personaje</label><input id="inputNombreOC" maxlength="40" placeholder="Valtor el Destructor" required></div>
+        <div class="form-group"><label for="inputImagen">Imagen</label><input id="inputImagen" type="file" accept="image/*" required></div>
+      </div>
+      <div class="form-group"><label for="inputDescripcion">Historia, poderes y debilidades</label><textarea id="inputDescripcion" maxlength="1500" placeholder="Describe con detalle qué puede hacer y qué no." required></textarea></div>
+      <button class="btn" id="btnGuardar">Evaluar y guardar</button>
+    </form>
+    <div id="resultadoCrear" class="grid" style="margin-top:20px"></div>
+    <details class="card">
+      <summary>Cómo se calcula el poder</summary>
+      <ol>
+        <li>Cada atributo (fuerza, velocidad, inteligencia, resistencia, magia y voluntad) parte de 30 y sube con las capacidades que menciones.</li>
+        <li>Las debilidades que describas (lento, frágil, cobarde…) restan en su atributo.</li>
+        <li>El total de puntos depende del detalle: cuanto más completa la descripción, más presupuesto, hasta un tope.</li>
+        <li>Palabras como «invencible» u «omnipotente» recortan ese presupuesto.</li>
+        <li>Declarar una debilidad da un pequeño bonus.</li>
+      </ol>
+    </details>
+  </section>
+
+  <section id="batallar" class="panel">
+    <h2>Arena de batalla</h2>
+    <p class="sub">Elige dos personajes distintos. El combate se simula segundo a segundo, hasta un KO o 60 s.</p>
+    <div class="arena">
+      <div class="slot a"><select id="selA" aria-label="Combatiente 1"></select><div id="cardA"></div></div>
+      <div class="vs">VS</div>
+      <div class="slot b"><select id="selB" aria-label="Combatiente 2"></select><div id="cardB"></div></div>
+    </div>
+    <div id="radarVS"></div>
+    <div style="text-align:center;margin-top:20px"><button class="btn" id="btnLuchar">Iniciar combate</button></div>
+    <div id="resultado"></div>
+  </section>
+
+  <section id="galeria" class="panel">
+    <h2>Galería</h2>
+    <p class="sub">Todos los personajes registrados.</p>
+    <div id="galeriaContenedor" class="grid"></div>
+  </section>
+
+  <section id="editar" class="panel">
+    <h2>Mis OCs</h2>
+    <p class="sub">Entra con tu usuario y contraseña para modificar o borrar tus personajes.</p>
+    <form id="formLogin" class="card">
+      <div class="row">
+        <div class="form-group"><label for="loginUsuario">Usuario</label><input id="loginUsuario" required></div>
+        <div class="form-group"><label for="loginPassword">Contraseña</label><input id="loginPassword" type="password" required></div>
+      </div>
+      <button class="btn">Ver mis personajes</button>
+    </form>
+    <div id="misOCs"></div>
+  </section>
+</main>
+<div id="toast" role="status"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where }
+  from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+/* ---------- Configuración ----------
+   Las claves de Firebase son públicas por diseño; se protegen con reglas de Firestore.
+   La clave de OpenAI NUNCA debe estar aquí. Si quieres IA real, crea una Cloud Function
+   que la guarde en el servidor y pon aquí su URL. Si queda vacío, se usa un evaluador local. */
+const CLASSIFY_ENDPOINT = "";
+/* URL de la Cloud Function que escribe la crónica de cada combate con IA (ver functions/index.js).
+   Vacía: se usa un narrador local sin IA. */
+const NARRATE_ENDPOINT = "";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCZwM7gMXFzkpMjblrWyQb9YXXprsul8uQ",
+  authDomain: "occombat.firebaseapp.com",
+  databaseURL: "https://occombat-default-rtdb.firebaseio.com",
+  projectId: "occombat",
+  storageBucket: "occombat.firebasestorage.app",
+  messagingSenderId: "251569653756",
+  appId: "1:251569653756:web:4367f26d5c9a70f3185479",
+  measurementId: "G-RDBQYPDKMC"
+};
+const db = getFirestore(initializeApp(firebaseConfig));
+const col = collection(db, "personajes");
+
+/* ---------- Utilidades ---------- */
+const $ = id => document.getElementById(id);
+function h(tag, props = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'class') e.className = v;
+    else if (k === 'on') for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn);
+    else e[k] = v;
+  }
+  kids.flat().forEach(c => e.append(c));
+  return e;
+}
+let toastTimer;
+function toast(msg, err = false) {
+  const t = $('toast'); t.textContent = msg; t.className = 'show' + (err ? ' err' : '');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = '', 3500);
+}
+const clamp = (n, min, max, def) => { n = Number(n); return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : def; };
+
+async function hashPassword(usuario, password) {
+  const data = new TextEncoder().encode(`${usuario.trim().toLowerCase()}:${password}:oc-arena`);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Reduce la imagen para que quepa en Firestore (límite de 1 MB por documento)
+function comprimirImagen(file, max = 480) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, max / Math.max(img.width, img.height));
+      const c = h('canvas', { width: Math.round(img.width * s), height: Math.round(img.height * s) });
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Imagen no válida')); };
+    img.src = url;
+  });
+}
+
+/* ---------- Criterio de evaluación ----------
+   Seis atributos (hexágono). Los textos se comparan sin tildes ni mayúsculas. */
+const STATS = [
+  { k: 'fuerza', n: 'Fuerza', w: ['fuerza','fuerte','golpe','martillo','espada','puno','titan','gigante','musculo','brutal','destroz','hacha','lanza','arma','cuerpo a cuerpo'] },
+  { k: 'velocidad', n: 'Velocidad', w: ['rapid','veloz','velocidad','agil','sigilo','sombra','daga','teletransport','reflejo','esquiv','vuelo','volar','relampago'] },
+  { k: 'inteligencia', n: 'Inteligencia', w: ['inteligen','estratega','estrategia','genio','sabio','conocimiento','tecnolog','ingenier','tactic','planific','astuto','cientific','analiz'] },
+  { k: 'resistencia', n: 'Resistencia', w: ['resistente','resistencia','armadura','escudo','tanque','regenera','aguant','coraza','curacion','sanar','vitalidad','piel de'] },
+  { k: 'magia', n: 'Magia', w: ['magia','mago','hechiz','conjuro','fuego','hielo','rayo','elemental','energia','psiquic','oscur','luz','invoca','maldicion','telequin','cosmic'] },
+  { k: 'voluntad', n: 'Voluntad', w: ['voluntad','coraje','valent','determinacion','lider','carisma','honor','disciplina','inquebrantable','espiritu','persever','sacrificio'] }
+];
+const BASE = ['Guerrero', 'Asesino', 'Estratega', 'Tanque', 'Hechicero', 'Paladín'];
+const DEBILES = [['\\blent[oa]','velocidad'],['\\btorpe','velocidad'],['\\bciego','velocidad'],['\\bfragil','resistencia'],
+  ['\\bdebil(es)?\\b','resistencia'],['\\benferm','resistencia'],['\\bagota','resistencia'],['\\bingenu','inteligencia'],
+  ['\\bimpulsiv','inteligencia'],['\\bcobarde','voluntad'],['\\bmiedo','voluntad'],['sin magia','magia']];
+const DIOS = ['invencible','omnipotente','todopoderoso','omnisciente','infinit','dios','indestructible','imposible de vencer','nunca pierde','sin debilidades'];
+const INTENS = ['legendari','increible','inmens','colosal','supremo','extremad','devastador','monstruos'];
+const RANGOS = [[1100, 'S'], [900, 'A'], [700, 'B'], [500, 'C'], [0, 'D']];
+const TOPE = 400;                       // suma máxima de los 6 atributos (de 600 posibles)
+const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const rangoDe = p => RANGOS.find(([m]) => p >= m)[1];
+
+function categoriaDe(st) {
+  const o = STATS.map((s, i) => ({ i, v: st[s.k] })).sort((a, b) => b.v - a.v);
+  if (o[0].v - o[5].v < 12) return 'Equilibrado';
+  return o[0].v - o[1].v <= 8 ? `${BASE[o[0].i]}-${BASE[o[1].i]}` : BASE[o[0].i];
+}
+// Cierra cualquier evaluación (local o IA): aplica el tope, calcula puntos y rango
+function cerrar({ stats, categoria, veredicto, fuente }) {
+  let suma = STATS.reduce((a, s) => a + stats[s.k], 0);
+  if (suma > TOPE) { STATS.forEach(s => stats[s.k] = clamp(stats[s.k] * TOPE / suma, 1, 100, 40)); suma = STATS.reduce((a, s) => a + stats[s.k], 0); }
+  const puntosTotales = Math.round(suma * 3);
+  return { stats, categoria: categoria || categoriaDe(stats), puntosTotales, rango: rangoDe(puntosTotales), veredicto, fuente };
+}
+
+function evaluarLocal(nombre, desc) {
+  const t = norm(desc), words = t.split(/\s+/).filter(Boolean).length;
+  const cuenta = src => (t.match(new RegExp(src, 'g')) || []).length;
+  const boost = Math.min(3, INTENS.reduce((n, w) => n + cuenta('\\b' + w), 0));
+  const raw = STATS.map(s => Math.min(9, s.w.reduce((n, w) => n + Math.min(2, cuenta('\\b' + w)), 0)));
+  DEBILES.forEach(([src, k]) => { if (cuenta(src)) raw[STATS.findIndex(s => s.k === k)] -= 1; });
+  const sc = raw.map(r => (r >= 0 ? 30 + 16 * Math.sqrt(r) : 30 + 8 * r) * (r > 0 ? 1 + .05 * boost : 1));
+  let total = 220 + 160 * Math.min(1, words / 120);              // más detalle, más presupuesto
+  const dioses = DIOS.filter(w => cuenta('\\b' + w)).length;
+  if (dioses) total *= Math.pow(.8, Math.min(2, dioses));         // poderes ilimitados se recortan
+  const conDefecto = /debilidad|defecto|limitacion|punto debil/.test(t);
+  if (conDefecto) total *= 1.05;                                  // bonus por declarar defectos
+  const f = total / sc.reduce((a, b) => a + b, 0), stats = {};
+  STATS.forEach((s, i) => stats[s.k] = clamp(sc[i] * f, 5, 100, 40));
+  const o = [...STATS].sort((a, b) => stats[b.k] - stats[a.k]);
+  let v = `Destaca en ${o[0].n.toLowerCase()} (${stats[o[0].k]}) y flaquea en ${o[5].n.toLowerCase()} (${stats[o[5].k]}).`;
+  if (dioses) v += ' Poderes sin límites: el juez recorta su potencial.';
+  else if (!conDefecto) v += ' No declara debilidades; añadir alguna da puntos.';
+  if (words < 40) v += ' Descripción corta: más detalle sube su presupuesto.';
+  return cerrar({ stats, veredicto: v, fuente: 'local' });
+}
+
+/* Contrato de la Cloud Function (CLASSIFY_ENDPOINT): recibe {nombre, descripcion} y devuelve
+   {categoria?, veredicto, stats:{fuerza,velocidad,inteligencia,resistencia,magia,voluntad}} con valores 0-100. */
+async function evaluar(nombre, descripcion) {
+  if (CLASSIFY_ENDPOINT) {
+    try {
+      const r = await fetch(CLASSIFY_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre, descripcion }) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json(), src = d.stats || d, stats = {};
+      STATS.forEach(s => stats[s.k] = clamp(src[s.k], 1, 100, 40));
+      return cerrar({ stats, categoria: d.categoria && String(d.categoria).slice(0, 40), veredicto: String(d.veredicto || '').slice(0, 200), fuente: 'ia' });
+    } catch (e) { console.warn('IA no disponible, se usa el juez local:', e); }
+  }
+  return evaluarLocal(nombre, descripcion);
+}
+
+/* ---------- Habilidades (se leen de la descripción) ---------- */
+const HAB = [
+  { t: 'drenar', n: 'Drenar poder', r: /(divid|reduc|mitad|absorb|rob[ao]|drena|debilita|consume)[^.]{0,45}(poder|fuerza|energia|ataque)/ },
+  { t: 'regen', n: 'Regeneración', r: /regenera|se cura|curacion|sana sus heridas|recupera (vida|salud)|sanar/ },
+  { t: 'revivir', n: 'Resurrección', r: /revive|resucit|renace|vuelve a la vida|fenix/ },
+  { t: 'veneno', n: 'Daño continuo', r: /veneno|sangrad|quemadura|corrosi|maldicion|plaga|incinera/ },
+  { t: 'escudo', n: 'Escudo', r: /escudo|barrera|cupula|campo de fuerza|protege/ },
+  { t: 'aturdir', n: 'Control', r: /congela|paraliza|aturd|petrific|encadena|\bsella|inmoviliza|hipnotiz/ },
+  { t: 'reflejo', n: 'Contraataque', r: /refleja|contraataque|devuelve (el )?(dano|golpe)|espinas/ },
+  { t: 'furia', n: 'Furia creciente', r: /furia|berserk|enfurece|crece|cada vez mas fuerte|aumenta su (poder|fuerza)|adrenalina|se fortalece/ },
+  { t: 'fase', n: 'Intangible', r: /intangible|teletransport|\bfase\b|etereo|invisible|desaparece/ }
+];
+const MAX_HAB = 4;   // tope para que nadie gane solo acumulando palabras clave
+function habilidades(oc) {
+  const g = oc.evaluacionIA?.habilidades, t = norm(oc.descripcion || '');
+  const ids = Array.isArray(g) && g.length ? g.map(String) : HAB.filter(x => x.r.test(t)).map(x => x.t);
+  return HAB.filter(x => ids.includes(x.t)).slice(0, MAX_HAB);
+}
+
+/* ---------- Simulador: un tick por segundo, hasta 60 s ---------- */
+const lim = (x, a, b) => Math.min(b, Math.max(a, x));
+function luchador(oc) {
+  const s = getStats(oc), hs = habilidades(oc), hp = 200 + s.resistencia * 6 + s.voluntad * 2;
+  const atk = s.fuerza * .5 + s.magia * .5 + s.inteligencia * .15;
+  return { nombre: oc.nombreOC, s, hn: hs.map(x => x.n), hab: hs.map(x => x.t), max: hp, hp, atk, atk0: atk, escudo: 0, stun: 0, revivio: false, hecho: 0,
+           tiene(t) { return this.hab.includes(t); } };
+}
+function golpe(f, e, t) {
+  if (f.stun > 0) return 0;
+  const esq = lim((e.s.velocidad - f.s.velocidad) / 200 + .1, .05, .6) + (e.tiene('fase') ? .15 : 0);
+  if (Math.random() < esq) return 0;
+  let d = f.atk * (f.tiene('furia') ? 1 + .02 * t : 1) * (f.hp < f.max * .3 ? 1 + f.s.voluntad / 500 : 1) * (.9 + Math.random() * .2);
+  if (Math.random() < f.s.inteligencia / 400) d *= 1.5;
+  return d * 100 / (100 + e.s.resistencia * .8);          // la resistencia reduce cada impacto
+}
+function herir(f, d) { const abs = Math.min(f.escudo, d); f.escudo -= abs; f.hp -= d - abs; }
+const pct = f => Math.max(0, Math.round(f.hp / f.max * 100));
+
+function simular(A, B) {
+  const a = luchador(A), b = luchador(B), log = [], hist = [], pares = [[a, b], [b, a]];
+  [a, b].forEach(f => log.push(f.hn.length ? `0 s: ${f.nombre} entra con las habilidades: ${f.hn.join(', ').toLowerCase()}.` : `0 s: ${f.nombre} entra sin habilidades especiales.`));
+  let seg = 0;
+  for (let t = 1; t <= 60 && a.hp > 0 && b.hp > 0; t++) {
+    seg = t;
+    for (const [f, e] of pares) {
+      if (f.tiene('escudo') && (t === 1 || t % 10 === 0)) f.escudo = f.max * .2;
+      if (f.tiene('drenar') && t % 5 === 0) {
+        const robado = Math.max(0, e.atk - e.atk0 * .1) / 2;   // quita la mitad (deja al menos el 10% de su poder base)
+        if (robado > 1) { e.atk -= robado; f.atk += robado; log.push(`${t} s: ${f.nombre} divide el poder de ${e.nombre} y se queda con esa mitad.`); }
+      }
+      if (f.tiene('aturdir') && t % 8 === 0) { e.stun = 2; log.push(`${t} s: ${f.nombre} inmoviliza a ${e.nombre} durante 2 s.`); }
+    }
+    const da = golpe(a, b, t), db = golpe(b, a, t);
+    herir(b, da); herir(a, db); a.hecho += da; b.hecho += db;
+    if (b.tiene('reflejo')) herir(a, da * .25);
+    if (a.tiene('reflejo')) herir(b, db * .25);
+    for (const [f, e] of pares) {
+      if (f.tiene('veneno')) { e.hp -= e.max * .015; f.hecho += e.max * .015; }
+      if (f.tiene('regen') && f.hp > 0) f.hp = Math.min(f.max, f.hp + f.max * .02);
+      f.stun = Math.max(0, f.stun - 1);
+    }
+    for (const f of [a, b]) if (f.hp <= 0 && f.tiene('revivir') && !f.revivio) { f.hp = f.max * .3; f.revivio = true; log.push(`${t} s: ${f.nombre} resucita con el 30% de su vida.`); }
+    if (t % 15 === 0) { hist.push({ t, a: pct(a), b: pct(b) }); log.push(`${t} s: ${a.nombre} ${pct(a)}% de vida, ${b.nombre} ${pct(b)}%.`); }
+  }
+  const ko = a.hp <= 0 || b.hp <= 0;
+  const ganador = a.hp <= 0 && b.hp <= 0 ? (a.hp >= b.hp ? a : b) : a.hp <= 0 ? b : b.hp <= 0 ? a : (a.hp / a.max >= b.hp / b.max ? a : b);
+  return { a, b, log, hist, seg, ganador, motivo: ko ? `por KO a los ${seg} s` : 'por vida restante tras 60 s de resistencia' };
+}
+
+/* ---------- Gráfico hexagonal ---------- */
+const SVGNS = 'http://www.w3.org/2000/svg';
+function sv(tag, attrs = {}) { const e = document.createElementNS(SVGNS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; }
+function getStats(oc) {   // compatible con personajes antiguos (3 atributos)
+  const s = oc.evaluacionIA || {}, st = s.stats || {};
+  return { fuerza: st.fuerza ?? s.fuerza ?? 40, velocidad: st.velocidad ?? s.agilidad ?? 40, inteligencia: st.inteligencia ?? s.inteligencia ?? 40,
+           resistencia: st.resistencia ?? 40, magia: st.magia ?? 40, voluntad: st.voluntad ?? 40 };
+}
+function radar(series, valores) {
+  const S = 300, c = S / 2, R = 100, n = STATS.length;
+  const pt = (i, v) => { const a = -Math.PI / 2 + i * 2 * Math.PI / n; return [c + R * v / 100 * Math.cos(a), c + R * v / 100 * Math.sin(a)]; };
+  const svg = sv('svg', { viewBox: `0 0 ${S} ${S}`, class: 'radar', role: 'img', 'aria-label': 'Gráfico de atributos: ' + STATS.map(s => `${s.n} ${series[0].stats[s.k]}`).join(', ') });
+  [25, 50, 75, 100].forEach(v => svg.append(sv('polygon', { class: 'ring', points: STATS.map((_, i) => pt(i, v).join(',')).join(' ') })));
+  STATS.forEach((s, i) => {
+    const [x, y] = pt(i, 100), [lx, ly] = pt(i, 122);
+    svg.append(sv('line', { class: 'ring', x1: c, y1: c, x2: x, y2: y }));
+    const t = sv('text', { class: 'lbl', x: lx, y: ly + (valores ? -2 : 4), 'text-anchor': 'middle' });
+    const t1 = sv('tspan', { x: lx }); t1.textContent = s.n; t.append(t1);
+    if (valores) { const t2 = sv('tspan', { x: lx, dy: 13, class: 'val' }); t2.textContent = series[0].stats[s.k]; t.append(t2); }
+    svg.append(t);
+  });
+  series.forEach(se => {
+    const p = STATS.map((s, i) => pt(i, se.stats[s.k]));
+    svg.append(sv('polygon', { class: 'shape ' + se.cls, points: p.map(q => q.join(',')).join(' ') }));
+    p.forEach(([x, y]) => svg.append(sv('circle', { class: 'dot ' + se.cls, cx: x, cy: y, r: 3.5 })));
+  });
+  return svg;
+}
+
+/* ---------- Tarjetas ---------- */
+function ocCard(oc, conRadar = true) {
+  const s = oc.evaluacionIA || {}, st = getStats(oc);
+  const pts = s.puntosTotales || Math.round(STATS.reduce((a, x) => a + st[x.k], 0) * 3), rango = s.rango || rangoDe(pts);
+  const img = h('img', { alt: oc.nombreOC, loading: 'lazy' });
+  if (typeof oc.imagenBase64 === 'string' && oc.imagenBase64.startsWith('data:image/')) img.src = oc.imagenBase64;
+  return h('article', { class: 'oc' }, img,
+    h('div', { class: 'body' },
+      h('h3', { textContent: oc.nombreOC }),
+      h('div', { class: 'tags' }, h('span', { class: 'tag', textContent: s.categoria || 'Sin categoría' }), h('span', { class: 'tag rank', textContent: 'Rango ' + rango })),
+      habilidades(oc).length ? h('div', { class: 'tags' }, ...habilidades(oc).map(x => h('span', { class: 'tag hab', textContent: x.n }))) : '',
+      h('span', { class: 'meta', textContent: 'Creador: ' + oc.usuario + ' · evaluado por ' + (s.fuente === 'ia' ? 'IA' : 'juez local') }),
+      h('span', { class: 'power', textContent: pts + ' pts de poder' }),
+      conRadar ? radar([{ stats: st, cls: 'a' }], true) : '',
+      s.veredicto ? h('p', { class: 'verdict', textContent: '“' + s.veredicto + '”' }) : ''));
+}
+
+/* ---------- Datos ---------- */
+let personajes = [];
+async function cargar() {
+  const snap = await getDocs(col);
+  personajes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return personajes;
+}
+
+async function cargarGaleria() {
+  const c = $('galeriaContenedor'); c.replaceChildren(h('p', { class: 'empty', textContent: 'Cargando personajes…' }));
+  try {
+    await cargar();
+    c.replaceChildren(...(personajes.length ? personajes.map(p => ocCard(p))
+      : [h('p', { class: 'empty', textContent: 'Aún no hay personajes. Crea el primero en la pestaña Crear OC.' })]));
+  } catch (e) { console.error(e); c.replaceChildren(h('p', { class: 'empty', textContent: 'No se pudo cargar la galería. Revisa la conexión y las reglas de Firestore.' })); }
+}
+
+/* ---------- Pestañas ---------- */
+document.querySelectorAll('.nav-btn').forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b === btn));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === btn.dataset.tab));
+  if (btn.dataset.tab === 'galeria') cargarGaleria();
+  if (btn.dataset.tab === 'batallar') prepararArena();
+}));
+
+/* ---------- Crear ---------- */
+$('formCrear').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = $('btnGuardar'); btn.disabled = true; btn.textContent = 'Evaluando…';
+  try {
+    const usuario = $('inputUsuario').value.trim(), nombreOC = $('inputNombreOC').value.trim();
+    const descripcion = $('inputDescripcion').value.trim();
+    const [imagenBase64, passHash] = await Promise.all([
+      comprimirImagen($('inputImagen').files[0]), hashPassword(usuario, $('inputPassword').value)]);
+    const evaluacionIA = await evaluar(nombreOC, descripcion);
+    await addDoc(col, { usuario, passHash, nombreOC, descripcion, imagenBase64, evaluacionIA, creadoEn: new Date().toISOString() });
+    personajes = [];   // fuerza a recargar la lista en Combatir y Galería
+    toast(`${nombreOC} guardado como ${evaluacionIA.categoria}.`);
+    $('resultadoCrear').replaceChildren(ocCard({ usuario, nombreOC, imagenBase64, evaluacionIA }));
+    e.target.reset();
+  } catch (err) {
+    console.error(err); toast('No se pudo guardar: ' + err.message, true);
+  } finally { btn.disabled = false; btn.textContent = 'Evaluar y guardar'; }
+});
+
+/* ---------- Combate ---------- */
+async function prepararArena() {
+  try { if (!personajes.length) await cargar(); } catch { toast('No se pudieron cargar los personajes.', true); return; }
+  for (const id of ['selA', 'selB']) {
+    const sel = $(id), prev = sel.value;
+    sel.replaceChildren(h('option', { value: '', textContent: 'Elige un personaje' }),
+      ...personajes.map(p => h('option', { value: p.id, textContent: p.nombreOC + ' (' + p.usuario + ')' })));
+    sel.value = prev;
+    sel.onchange = () => mostrarLuchador(id);
+    mostrarLuchador(id);
+  }
+}
+const elegido = id => personajes.find(x => x.id === $(id).value);
+function mostrarLuchador(selId) {
+  const p = elegido(selId);
+  $('card' + selId.slice(-1)).replaceChildren(p ? ocCard(p, false) : h('p', { class: 'empty', textContent: 'Sin elegir' }));
+  $('resultado').replaceChildren();
+  const A = elegido('selA'), B = elegido('selB');
+  const dos = A && B && A.id !== B.id, uno = !dos && (A || B);
+  $('radarVS').replaceChildren(...(dos ? [
+    h('div', { class: 'legend' }, h('span', { class: 'a', textContent: A.nombreOC }), h('span', { class: 'b', textContent: B.nombreOC })),
+    radar([{ stats: getStats(A), cls: 'a' }, { stats: getStats(B), cls: 'b' }], false)]
+    : uno ? [radar([{ stats: getStats(uno), cls: uno === A ? 'a' : 'b' }], true)] : []));
+}
+/* ---------- Crónica de la batalla ---------- */
+const FLAVOR = { drenar: 'la capacidad de arrebatar el poder ajeno', regen: 'su regeneración', revivir: 'su poder para volver de la derrota', veneno: 'su daño continuo',
+  escudo: 'su escudo', aturdir: 'sus técnicas de control', reflejo: 'su contraataque', furia: 'una furia que no deja de crecer', fase: 'un cuerpo casi intangible' };
+const unir = l => l.length < 2 ? (l[0] || '') : l.slice(0, -1).join(', ') + ' y ' + l[l.length - 1];
+
+// Narrador de respaldo: convierte el resultado de la simulación en prosa
+function narrarLocal(r) {
+  const { a, b, ganador, seg, hist, log } = r, perd = ganador === a ? b : a, pick = x => x[Math.floor(Math.random() * x.length)];
+  const fuerte = f => STATS.reduce((m, s) => f.s[s.k] > f.s[m.k] ? s : m).n.toLowerCase();
+  const extra = f => f.hab.length ? `, además de ${unir(f.hab.map(x => FLAVOR[x]))}` : '';
+  const P = [`${a.nombre} y ${b.nombre} se enfrentan en la arena. ${a.nombre} confía en su ${fuerte(a)}${extra(a)}; ${b.nombre} responde con su ${fuerte(b)}${extra(b)}.`];
+  const medio = [], drena = [a, b].find(f => f.tiene('drenar')), para = [a, b].find(f => f.tiene('aturdir'));
+  if (hist.length) {
+    const p = hist[0], lider = p.a === p.b ? null : p.a > p.b ? a : b;
+    medio.push(lider ? `A los ${p.t} segundos ${lider.nombre} llevaba la ventaja, con un ${Math.max(p.a, p.b)}% de vida frente a un ${Math.min(p.a, p.b)}%.` : `A los ${p.t} segundos el duelo seguía igualado.`);
+  } else medio.push(pick(['El intercambio de golpes fue rápido y brutal.', 'Ninguno quiso medirse: desde el primer segundo se lanzaron al ataque.']));
+  if (drena) medio.push(`Cada cinco segundos ${drena.nombre} arrebataba la mitad del poder de ${(drena === a ? b : a).nombre} y lo hacía suyo, inclinando el combate poco a poco.`);
+  if (para && log.some(x => x.includes('inmoviliza'))) medio.push(`${para.nombre} logró inmovilizar a su rival en pleno ataque.`);
+  const resu = log.find(x => x.includes(' resucita'));
+  if (resu) medio.push(`Cuando parecía vencido, ${resu.split(': ')[1].split(' resucita')[0]} resurgió con una fuerza renovada.`);
+  P.push(medio.join(' '));
+  P.push(r.motivo.startsWith('por KO')
+    ? pick([`A los ${seg} segundos, ${ganador.nombre} asestó el golpe definitivo y ${perd.nombre} cayó derrotado.`, `El combate terminó a los ${seg} segundos: ${perd.nombre} no pudo seguir en pie y ${ganador.nombre} se proclamó vencedor.`])
+    : `Tras un minuto de resistencia nadie había caído, pero ${ganador.nombre} conservaba más vida (${pct(ganador)}% contra ${pct(perd)}%) y se llevó la victoria.`);
+  return P;
+}
+
+// Con NARRATE_ENDPOINT la crónica la escribe una IA; si falla o no está configurado, el narrador local
+async function narrar(A, B, r) {
+  if (NARRATE_ENDPOINT) {
+    try {
+      const ficha = (oc, f) => ({ nombre: oc.nombreOC, categoria: oc.evaluacionIA?.categoria || '', descripcion: (oc.descripcion || '').slice(0, 600), stats: f.s, habilidades: f.hn });
+      const res = await fetch(NARRATE_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        a: ficha(A, r.a), b: ficha(B, r.b), registro: r.log, ganador: r.ganador.nombre, motivo: r.motivo,
+        vidaFinal: { [r.a.nombre]: pct(r.a), [r.b.nombre]: pct(r.b) } }) });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const d = await res.json();
+      if (d.cronica) return { parrafos: String(d.cronica).slice(0, 2500).split(/\n{2,}/).filter(Boolean), fuente: 'IA' };
+    } catch (e) { console.warn('Narrador IA no disponible, se usa el local:', e); }
+  }
+  return { parrafos: narrarLocal(r), fuente: 'narrador local' };
+}
+
+let peleaId = 0;
+$('btnLuchar').addEventListener('click', async () => {
+  const A = elegido('selA'), B = elegido('selB');
+  if (!A || !B) return toast('Elige dos personajes.', true);
+  if (A.id === B.id) return toast('Elige dos personajes distintos.', true);
+  const id = ++peleaId, btn = $('btnLuchar'), r = simular(A, B), ganaA = r.ganador === r.a;
+  btn.disabled = true;
+  document.querySelectorAll('#cardA .oc, #cardB .oc').forEach(c => c.classList.remove('winner'));
+  const cronica = h('div', { class: 'cronica' }, h('p', { class: 'meta', textContent: 'El narrador está escribiendo la crónica…' }));
+  $('resultado').replaceChildren(
+    h('div', { class: 'result', textContent: `Gana ${r.ganador.nombre} ${r.motivo}` }), cronica,
+    h('details', { class: 'card' }, h('summary', { textContent: 'Registro técnico del combate' }),
+      h('div', { class: 'log' }, ...r.log.map(x => h('p', { textContent: x })),
+        h('p', { textContent: `Vida final: ${r.a.nombre} ${pct(r.a)}%, ${r.b.nombre} ${pct(r.b)}%. Daño causado: ${Math.round(r.a.hecho)} y ${Math.round(r.b.hecho)}.` }))));
+  $('card' + (ganaA ? 'A' : 'B')).firstElementChild?.classList.add('winner');
+  const c = await narrar(A, B, r);
+  if (id === peleaId) cronica.replaceChildren(...c.parrafos.map(x => h('p', { textContent: x })), h('p', { class: 'meta', textContent: 'Crónica escrita por ' + c.fuente + '.' }));
+  btn.disabled = false;
+});
+
+/* ---------- Editar ---------- */
+let sesion = null;
+$('formLogin').addEventListener('submit', async e => {
+  e.preventDefault();
+  const usuario = $('loginUsuario').value.trim();
+  try {
+    const passHash = await hashPassword(usuario, $('loginPassword').value);
+    const snap = await getDocs(query(col, where('usuario', '==', usuario)));
+    const mios = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.passHash === passHash);
+    if (!mios.length) return toast('Usuario o contraseña incorrectos, o sin personajes.', true);
+    sesion = { usuario, passHash };
+    renderMios(mios);
+  } catch (err) { console.error(err); toast('Error al entrar: ' + err.message, true); }
+});
+function renderMios(lista) {
+  $('misOCs').replaceChildren(...lista.map(p => {
+    const nombre = h('input', { value: p.nombreOC, maxLength: 40 });
+    const desc = h('textarea', { value: p.descripcion, maxLength: 1500 });
+    const guardar = h('button', { class: 'btn', type: 'button', textContent: 'Guardar y reevaluar', on: { click: async ev => {
+      ev.target.disabled = true;
+      try {
+        const evaluacionIA = await evaluar(nombre.value.trim(), desc.value.trim());
+        await updateDoc(doc(db, 'personajes', p.id), { nombreOC: nombre.value.trim(), descripcion: desc.value.trim(), evaluacionIA });
+        toast('Cambios guardados.'); personajes = [];
+      } catch (err) { toast('No se pudo guardar: ' + err.message, true); }
+      ev.target.disabled = false;
+    } } });
+    const borrar = h('button', { class: 'btn danger', type: 'button', textContent: 'Eliminar', on: { click: async () => {
+      if (!confirm(`¿Eliminar a ${p.nombreOC}? No se puede deshacer.`)) return;
+      try { await deleteDoc(doc(db, 'personajes', p.id)); toast('Personaje eliminado.'); personajes = [];
+        renderMios(lista.filter(x => x.id !== p.id)); } catch (err) { toast('No se pudo eliminar.', true); }
+    } } });
+    return h('div', { class: 'card edit-item' }, h('label', { textContent: 'Nombre' }), nombre,
+      h('label', { textContent: 'Descripción' }), desc, h('div', { class: 'actions' }, guardar, borrar));
+  }));
+}
+</script>
+</body>
+</html>
