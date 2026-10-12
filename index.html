@@ -262,7 +262,7 @@ function categoriaDe(st) {
 // Cierra cualquier evaluación (local o IA): aplica el tope, calcula puntos y rango
 function cerrar({ stats, categoria, veredicto, fuente }) {
   let suma = STATS.reduce((a, s) => a + stats[s.k], 0);
-  if (suma > TOPE) { STATS.forEach(s => stats[s.k] = clamp(stats[s.k] * TOPE / suma, 1, 100, 40)); suma = STATS.reduce((a, s) => a + stats[s.k], 0); }
+  if (suma > TOPE) { STATS.forEach(s => stats[s.k] = clamp(stats[s.k] * TOPE / suma, 0, 100, 40)); suma = STATS.reduce((a, s) => a + stats[s.k], 0); }
   const puntosTotales = Math.round(suma * 3);
   return { stats, categoria: categoria || categoriaDe(stats), puntosTotales, rango: rangoDe(puntosTotales), veredicto, fuente };
 }
@@ -274,15 +274,20 @@ function evaluarLocal(nombre, desc) {
   const raw = STATS.map(s => Math.min(9, s.w.reduce((n, w) => n + Math.min(2, cuenta('\\b' + w)), 0)));
   DEBILES.forEach(([src, k]) => { if (cuenta(src)) raw[STATS.findIndex(s => s.k === k)] -= 1; });
   const sc = raw.map(r => (r >= 0 ? 30 + 16 * Math.sqrt(r) : 30 + 8 * r) * (r > 0 ? 1 + .05 * boost : 1));
+  // «no tiene magia», «sin fuerza»…: el atributo queda en 0 y su parte del presupuesto se reparte entre los demás
+  const nulos = STATS.map(s => new RegExp('(\\bsin|\\bcarece\\b[^.,;]{0,25}\\bde|\\bno (tiene|posee|usa|domina|conoce|sabe usar|puede usar))\\s+(nada de |ninguna |ningun |la |el |toda |todo )?' + s.k + '\\b|\\b' + s.k + '\\s+(nula|nulo|inexistente|=\\s*0|\\(0\\))').test(t));
+  nulos.forEach((n, i) => { if (n) sc[i] = 0; });
   let total = 220 + 160 * Math.min(1, words / 120);              // más detalle, más presupuesto
   const dioses = DIOS.filter(w => cuenta('\\b' + w)).length;
   if (dioses) total *= Math.pow(.8, Math.min(2, dioses));         // poderes ilimitados se recortan
   const conDefecto = /debilidad|defecto|limitacion|punto debil/.test(t);
   if (conDefecto) total *= 1.05;                                  // bonus por declarar defectos
   const f = total / sc.reduce((a, b) => a + b, 0), stats = {};
-  STATS.forEach((s, i) => stats[s.k] = clamp(sc[i] * f, 5, 100, 40));
+  STATS.forEach((s, i) => stats[s.k] = nulos[i] ? 0 : clamp(sc[i] * f, 5, 100, 40));
   const o = [...STATS].sort((a, b) => stats[b.k] - stats[a.k]);
   let v = `Destaca en ${o[0].n.toLowerCase()} (${stats[o[0].k]}) y flaquea en ${o[5].n.toLowerCase()} (${stats[o[5].k]}).`;
+  const sinN = STATS.filter((s, i) => nulos[i]).map(s => s.n.toLowerCase());
+  if (sinN.length) v += ' Sin ' + sinN.join(' ni ') + '.';
   if (dioses) v += ' Poderes sin límites: el juez recorta su potencial.';
   else if (!conDefecto) v += ' No declara debilidades; añadir alguna da puntos.';
   if (words < 40) v += ' Descripción corta: más detalle sube su presupuesto.';
@@ -313,8 +318,9 @@ const HAB = [
   { t: 'escudo', n: 'Escudo', r: /escudo|barrera|cupula|campo de fuerza|protege/ },
   { t: 'aturdir', n: 'Control', r: /congela|paraliza|aturd|petrific|encadena|\bsella|inmoviliza|hipnotiz/ },
   { t: 'reflejo', n: 'Contraataque', r: /refleja|contraataque|devuelve (el )?(dano|golpe)|espinas/ },
-  { t: 'furia', n: 'Furia creciente', r: /furia|berserk|enfurece|crece|cada vez mas fuerte|aumenta su (poder|fuerza)|adrenalina|se fortalece/ },
-  { t: 'fase', n: 'Intangible', r: /intangible|teletransport|\bfase\b|etereo|invisible|desaparece/ }
+  { t: 'furia', n: 'Furia creciente', r: /furia|berserk|enfurece|crece|cada vez mas fuerte|aument[ae] (su|la) (poder|fuerza)|adrenalina|se fortalece/ },
+  { t: 'fase', n: 'Intangible', r: /intangible|teletransport|\bfase\b|etereo|invisible|desaparece/ },
+  { t: 'retroceso', n: 'Retroceso', r: /represalia|retroceso|recibe (un |una )?(dano|golpe)|autolesion|pierde vida al atacar/ }
 ];
 const MAX_HAB = 4;   // tope para que nadie gane solo acumulando palabras clave
 function habilidades(oc) {
@@ -327,15 +333,16 @@ function habilidades(oc) {
 const lim = (x, a, b) => Math.min(b, Math.max(a, x));
 function luchador(oc) {
   const s = getStats(oc), hs = habilidades(oc), hp = 200 + s.resistencia * 6 + s.voluntad * 2;
-  const atk = s.fuerza * .5 + s.magia * .5 + s.inteligencia * .15;
-  return { nombre: oc.nombreOC, s, hn: hs.map(x => x.n), hab: hs.map(x => x.t), max: hp, hp, atk, atk0: atk, escudo: 0, stun: 0, revivio: false, hecho: 0,
+  const atk = Math.max(s.fuerza, s.magia) * .85 + Math.min(s.fuerza, s.magia) * .15 + s.inteligencia * .15;   // vale tanto el físico como la magia
+  return { nombre: oc.nombreOC, s, hn: hs.map(x => x.n), hab: hs.map(x => x.t), max: hp, hp, atk, atk0: atk, escudo: 0, stun: 0, revivio: false, hecho: 0, carga: false,
            tiene(t) { return this.hab.includes(t); } };
 }
 function golpe(f, e, t) {
   if (f.stun > 0) return 0;
   const esq = lim((e.s.velocidad - f.s.velocidad) / 200 + .1, .05, .6) + (e.tiene('fase') ? .15 : 0);
   if (Math.random() < esq) return 0;
-  let d = f.atk * (f.tiene('furia') ? 1 + .02 * t : 1) * (f.hp < f.max * .3 ? 1 + f.s.voluntad / 500 : 1) * (.9 + Math.random() * .2);
+  const cargado = f.carga; f.carga = false;
+  let d = f.atk * (cargado ? 1.3 : 1) * (f.tiene('furia') ? 1 + .02 * t : 1) * (f.hp < f.max * .3 ? 1 + f.s.voluntad / 500 : 1) * (.9 + Math.random() * .2);
   if (Math.random() < f.s.inteligencia / 400) d *= 1.5;
   return d * 100 / (100 + e.s.resistencia * .8);          // la resistencia reduce cada impacto
 }
@@ -348,16 +355,19 @@ function simular(A, B) {
   let seg = 0;
   for (let t = 1; t <= 60 && a.hp > 0 && b.hp > 0; t++) {
     seg = t;
+    // Los drenajes se calculan a la vez con el poder previo, para que ninguno tenga ventaja por el orden
+    const rob = pares.map(([f, e]) => f.tiene('drenar') && t % 5 === 0 ? Math.max(0, e.atk - e.atk0 * .1) / 2 : 0);
+    pares.forEach(([f, e], i) => {
+      if (rob[i] > 1) { e.atk -= rob[i]; f.atk += rob[i]; log.push(`${t} s: ${f.nombre} divide el poder de ${e.nombre} y se queda con esa mitad.`); }
+    });
     for (const [f, e] of pares) {
       if (f.tiene('escudo') && (t === 1 || t % 10 === 0)) f.escudo = f.max * .2;
-      if (f.tiene('drenar') && t % 5 === 0) {
-        const robado = Math.max(0, e.atk - e.atk0 * .1) / 2;   // quita la mitad (deja al menos el 10% de su poder base)
-        if (robado > 1) { e.atk -= robado; f.atk += robado; log.push(`${t} s: ${f.nombre} divide el poder de ${e.nombre} y se queda con esa mitad.`); }
-      }
       if (f.tiene('aturdir') && t % 8 === 0) { e.stun = 2; log.push(`${t} s: ${f.nombre} inmoviliza a ${e.nombre} durante 2 s.`); }
     }
     const da = golpe(a, b, t), db = golpe(b, a, t);
     herir(b, da); herir(a, db); a.hecho += da; b.hecho += db;
+    // Retroceso: cada golpe le cuesta un 12% del daño causado, pero el siguiente pega un 30% más
+    for (const [f, dm] of [[a, da], [b, db]]) if (f.tiene('retroceso') && dm > 0) { f.hp -= dm * .12; f.carga = true; }
     if (b.tiene('reflejo')) herir(a, da * .25);
     if (a.tiene('reflejo')) herir(b, db * .25);
     for (const [f, e] of pares) {
@@ -490,7 +500,7 @@ function mostrarLuchador(selId) {
 }
 /* ---------- Crónica de la batalla ---------- */
 const FLAVOR = { drenar: 'la capacidad de arrebatar el poder ajeno', regen: 'su regeneración', revivir: 'su poder para volver de la derrota', veneno: 'su daño continuo',
-  escudo: 'su escudo', aturdir: 'sus técnicas de control', reflejo: 'su contraataque', furia: 'una furia que no deja de crecer', fase: 'un cuerpo casi intangible' };
+  escudo: 'su escudo', aturdir: 'sus técnicas de control', reflejo: 'su contraataque', furia: 'una furia que no deja de crecer', fase: 'un cuerpo casi intangible', retroceso: 'unos golpes que le salen muy caros' };
 const unir = l => l.length < 2 ? (l[0] || '') : l.slice(0, -1).join(', ') + ' y ' + l[l.length - 1];
 
 // Narrador de respaldo: convierte el resultado de la simulación en prosa
