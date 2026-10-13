@@ -1,5 +1,4 @@
 exports.handler = async function(event, context) {
-  // Solo permitimos peticiones POST
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, body: JSON.stringify({ error: "Usa POST" }) };
   }
@@ -24,7 +23,6 @@ exports.handler = async function(event, context) {
       `VIDA FINAL: ${JSON.stringify(vidaFinal || {})}`,
     ].join("\n");
 
-    // Leemos la clave desde GROQ_API_KEY u OPENAI_API_KEY
     const apiKey = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY;
     console.log("¿Clave detectada en Netlify?:", apiKey ? "SÍ" : "NO");
 
@@ -32,7 +30,6 @@ exports.handler = async function(event, context) {
       throw new Error("Falta la clave de API en las variables de entorno de Netlify");
     }
 
-    // Petición a la API de Groq con el modelo oficial activo
     const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { 
@@ -40,7 +37,7 @@ exports.handler = async function(event, context) {
         "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: "openai/gpt-oss-20b", // Identificador oficial de Groq para su modelo gratuito rápido
+        model: "openai/gpt-oss-20b",
         temperature: 0.9,
         max_tokens: 500,
         messages: [
@@ -66,8 +63,14 @@ exports.handler = async function(event, context) {
     }
     
     const j = await r.json();
-    const cronica = j.choices?.[0]?.message?.content?.trim();
-    if (!cronica) throw new Error("Respuesta vacía de Groq");
+    console.log("Respuesta raw de Groq:", JSON.stringify(j));
+
+    // Extraer contenido
+    const cronica = j.choices?.[0]?.message?.content?.trim() || j.choices?.[0]?.text?.trim();
+
+    if (!cronica) {
+      throw new Error("Respuesta vacía de Groq: " + JSON.stringify(j));
+    }
 
     return {
       statusCode: 200,
