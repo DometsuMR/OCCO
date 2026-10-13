@@ -37,9 +37,9 @@ exports.handler = async function(event, context) {
         "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: "llama3-8b-8192", // Modelo clásico y 100% estable en Groq gratuito
+        model: "openai/gpt-oss-20b", // El único modelo que ha respondido con éxito 200
         temperature: 0.8,
-        max_tokens: 1000,
+        max_tokens: 1500, // Margen amplio para que no se quede sin espacio al razonar y escribir
         messages: [
           {
             role: "system",
@@ -63,7 +63,12 @@ exports.handler = async function(event, context) {
     }
     
     const j = await r.json();
+
+    // Extraer contenido de la respuesta (priorizando el texto o el razonamiento si fuera necesario)
     let cronica = j.choices?.[0]?.message?.content?.trim();
+    if (!cronica && j.choices?.[0]?.message?.reasoning) {
+      cronica = j.choices[0].message.reasoning.trim();
+    }
 
     if (!cronica) {
       throw new Error("Respuesta vacía de Groq: " + JSON.stringify(j));
