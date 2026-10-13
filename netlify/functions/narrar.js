@@ -32,15 +32,15 @@ exports.handler = async function(event, context) {
       throw new Error("Falta la clave de API en las variables de entorno de Netlify");
     }
 
-    // Petición a la API de Groq
+    // Petición a la API de Groq con el modelo oficial activo
     const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { 
         "Content-Type": "application/json", 
-        "Authorization": `Bearer ${apiKey}` // <-- Corregido aquí
+        "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant", // Modelo gratuito y activo en Groq
+        model: "openai/gpt-oss-20b", // Identificador oficial de Groq para su modelo gratuito rápido
         temperature: 0.9,
         max_tokens: 500,
         messages: [
