@@ -24,29 +24,21 @@ exports.handler = async function(event, context) {
       `VIDA FINAL: ${JSON.stringify(vidaFinal || {})}`,
     ].join("\n");
 
-    // --- DEPURACIÓN DE LA CLAVE ---
-    const apiKey = process.env.OPENAI_API_KEY;
-    console.log("--- DEBUGGING OPENAI KEY ---");
-    console.log("¿La variable process.env.OPENAI_API_KEY existe?:", apiKey ? "SÍ" : "NO");
-    if (apiKey) {
-      console.log("Longitud de la clave:", apiKey.length);
-      console.log("Empieza por:", apiKey.slice(0, 5) + "...");
-    }
-    console.log("----------------------------");
-    // -----------------------------
-
+    // Leemos la clave de Groq desde las variables de entorno de Netlify
+    const apiKey = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      throw new Error("Falta la clave de OpenAI en el servidor de Netlify");
+      throw new Error("Falta la clave de API en el servidor de Netlify");
     }
 
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    // Petición a la API gratuita de Groq
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { 
         "Content-Type": "application/json", 
         "Authorization": `Bearer ${apiKey}` 
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "llama-3.3-70b-versatile", // Modelo gratuito, potente y rápido de Groq
         temperature: 0.9,
         max_tokens: 500,
         messages: [
@@ -67,13 +59,13 @@ exports.handler = async function(event, context) {
 
     if (!r.ok) {
       const errorBody = await r.text();
-      console.error("Error devuelto por OpenAI:", r.status, errorBody);
-      throw new Error("OpenAI respondió con estado " + r.status);
+      console.error("Error devuelto por Groq:", r.status, errorBody);
+      throw new Error("Groq respondió con estado " + r.status);
     }
     
     const j = await r.json();
     const cronica = j.choices?.[0]?.message?.content?.trim();
-    if (!cronica) throw new Error("Respuesta vacía de OpenAI");
+    if (!cronica) throw new Error("Respuesta vacía de Groq");
 
     return {
       statusCode: 200,
