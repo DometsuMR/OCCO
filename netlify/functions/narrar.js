@@ -24,18 +24,20 @@ exports.handler = async function(event, context) {
       `VIDA FINAL: ${JSON.stringify(vidaFinal || {})}`,
     ].join("\n");
 
-    // Leemos la clave de Groq desde las variables de entorno de Netlify
+    // Leemos la clave desde GROQ_API_KEY u OPENAI_API_KEY
     const apiKey = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY;
+    console.log("¿Clave detectada en Netlify?:", apiKey ? "SÍ" : "NO");
+
     if (!apiKey) {
-      throw new Error("Falta la clave de API en el servidor de Netlify");
+      throw new Error("Falta la clave de API en las variables de entorno de Netlify");
     }
 
-    // Petición a la API gratuita de Groq usando el modelo correcto
+    // Petición a la API de Groq
     const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { 
         "Content-Type": "application/json", 
-        "Authorization": `Bearer `
+        "Authorization": `Bearer ${apiKey}` // <-- Corregido aquí
       },
       body: JSON.stringify({
         model: "llama-3.1-8b-instant", // Modelo gratuito y activo en Groq
