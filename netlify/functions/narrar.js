@@ -37,7 +37,7 @@ exports.handler = async function(event, context) {
         "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: "llama3-8b-8192", // Modelo clásico y 100% estable en Groq gratuito
         temperature: 0.8,
         max_tokens: 1000,
         messages: [
@@ -63,12 +63,7 @@ exports.handler = async function(event, context) {
     }
     
     const j = await r.json();
-
     let cronica = j.choices?.[0]?.message?.content?.trim();
-
-    if (!cronica && j.choices?.[0]?.message?.reasoning) {
-      cronica = j.choices[0].message.reasoning.trim();
-    }
 
     if (!cronica) {
       throw new Error("Respuesta vacía de Groq: " + JSON.stringify(j));
