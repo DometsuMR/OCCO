@@ -88,6 +88,11 @@ details ol{margin:12px 0 0 20px;display:grid;gap:6px}
 #toast.show{opacity:1;transform:translateX(-50%)}
 #toast.err{border-color:var(--danger)}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(max-width:600px){.row3{grid-template-columns:1fr 1fr}}
+.hab-row{display:grid;gap:8px;margin-bottom:12px;padding:12px;border:1px solid var(--line);border-radius:10px}
+.hab-row textarea{min-height:70px}
+.pts.neg{color:var(--danger)}
 </style>
 </head>
 <body>
@@ -108,11 +113,22 @@ details ol{margin:12px 0 0 20px;display:grid;gap:6px}
     <p class="sub">El juez lee la descripción y reparte puntos en seis atributos.</p>
     <form id="formCrear" class="card">
       <div class="row">
-        <div class="form-group"><label for="inputUsuario">Tu nombre de usuario</label><input id="inputUsuario" maxlength="30" placeholder="Alex_Player" required></div>
+        <div class="form-group"><label for="inputUsuario">Tu nombre de usuario</label><input id="inputUsuario" maxlength="30" placeholder="Usuario" required></div>
         <div class="form-group"><label for="inputPassword">Contraseña para editar después</label><input id="inputPassword" type="password" minlength="4" placeholder="Mínimo 4 caracteres" required></div>
       </div>
       <div class="row">
         <div class="form-group"><label for="inputNombreOC">Nombre del personaje</label><input id="inputNombreOC" maxlength="40" placeholder="Valtor el Destructor" required></div>
+        <div class="form-group">
+        <label>Atributos base: te quedan <b id="ptsRest" class="pts">300</b> puntos (10 a 80 cada uno). La IA puede subirlos un poco según tu historia.</label>
+        <div id="statsInputs" class="row3"></div>
+      </div>
+      <div class="form-group">
+        <label>Habilidades (hasta 4). La IA decide su efecto y su potencia.</label>
+        <div id="habInputs"></div>
+        <button type="button" class="btn ghost" id="btnAddHab">+ Añadir habilidad</button>
+      </div>
+
+        
         <div class="form-group"><label for="inputImagen">Imagen</label><input id="inputImagen" type="file" accept="image/*" required></div>
       </div>
       <div class="form-group"><label for="inputDescripcion">Historia, poderes y debilidades</label><textarea id="inputDescripcion" maxlength="1500" placeholder="Describe con detalle qué puede hacer y qué no." required></textarea></div>
@@ -174,8 +190,8 @@ import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, q
    Las claves de Firebase son públicas por diseño; se protegen con reglas de Firestore.
    La clave de OpenAI NUNCA debe estar aquí. Si quieres IA real, crea una Cloud Function
    que la guarde en el servidor y pon aquí su URL. Si queda vacío, se usa un evaluador local. */
-const CLASSIFY_ENDPOINT = "";
-/* URL de la Cloud Function que escribe la crónica de cada combate con IA (ver functions/index.js).
+const CLASSIFY_ENDPOINT = "/.netlify/functions/clasificar";
+  /* URL de la Cloud Function que escribe la crónica de cada combate con IA (ver functions/index.js).
    Vacía: se usa un narrador local sin IA. */
 const NARRATE_ENDPOINT = "/.netlify/functions/narrar";
 
@@ -234,117 +250,104 @@ function comprimirImagen(file, max = 480) {
 }
 
 /* ---------- Criterio de evaluación ----------
-   Seis atributos (hexágono). Los textos se comparan sin tildes ni mayúsculas. */
+   El jugador reparte PUNTOS en 6 atributos y describe hasta 4 habilidades.
+   La IA sube atributos (con tope) y convierte cada habilidad en tipo + potencia (1-5). */
 const STATS = [
-  { k: 'fuerza', n: 'Fuerza', w: ['fuerza','fuerte','golpe','martillo','espada','puno','titan','gigante','musculo','brutal','destroz','hacha','lanza','arma','cuerpo a cuerpo'] },
-  { k: 'velocidad', n: 'Velocidad', w: ['rapid','veloz','velocidad','agil','sigilo','sombra','daga','teletransport','reflejo','esquiv','vuelo','volar','relampago'] },
-  { k: 'inteligencia', n: 'Inteligencia', w: ['inteligen','estratega','estrategia','genio','sabio','conocimiento','tecnolog','ingenier','tactic','planific','astuto','cientific','analiz'] },
-  { k: 'resistencia', n: 'Resistencia', w: ['resistente','resistencia','armadura','escudo','tanque','regenera','aguant','coraza','curacion','sanar','vitalidad','piel de'] },
-  { k: 'magia', n: 'Magia', w: ['magia','mago','hechiz','conjuro','fuego','hielo','rayo','elemental','energia','psiquic','oscur','luz','invoca','maldicion','telequin','cosmic'] },
-  { k: 'voluntad', n: 'Voluntad', w: ['voluntad','coraje','valent','determinacion','lider','carisma','honor','disciplina','inquebrantable','espiritu','persever','sacrificio'] }
+  { k: 'fuerza', n: 'Fuerza' }, { k: 'velocidad', n: 'Velocidad' }, { k: 'inteligencia', n: 'Inteligencia' },
+  { k: 'resistencia', n: 'Resistencia' }, { k: 'magia', n: 'Magia' }, { k: 'voluntad', n: 'Voluntad' }
 ];
 const BASE = ['Guerrero', 'Asesino', 'Estratega', 'Tanque', 'Hechicero', 'Paladín'];
-const DEBILES = [['\\blent[oa]','velocidad'],['\\btorpe','velocidad'],['\\bciego','velocidad'],['\\bfragil','resistencia'],
-  ['\\bdebil(es)?\\b','resistencia'],['\\benferm','resistencia'],['\\bagota','resistencia'],['\\bingenu','inteligencia'],
-  ['\\bimpulsiv','inteligencia'],['\\bcobarde','voluntad'],['\\bmiedo','voluntad'],['sin magia','magia']];
-const DIOS = ['invencible','omnipotente','todopoderoso','omnisciente','infinit','dios','indestructible','imposible de vencer','nunca pierde','sin debilidades'];
-const INTENS = ['legendari','increible','inmens','colosal','supremo','extremad','devastador','monstruos'];
-const RANGOS = [[1100, 'S'], [900, 'A'], [700, 'B'], [500, 'C'], [0, 'D']];
-const TOPE = 400;                       // suma máxima de los 6 atributos (de 600 posibles)
+const PUNTOS = 300, SMIN = 10, SMAX = 80, BONO_STAT = 12, BONO_TOTAL = 36, MAX_HAB = 4, MAX_POT = 12;
+const RANGOS = [[1200, 'S'], [1050, 'A'], [950, 'B'], [900, 'C'], [0, 'D']];
 const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const rangoDe = p => RANGOS.find(([m]) => p >= m)[1];
+
+// Tipos de efecto (solo la regex se usa en el evaluador local de respaldo)
+const HAB = [
+  { t: 'drenar', r: /(divid|reduc|mitad|absorb|rob[ao]|drena|debilita|consume)[^.]{0,45}(poder|fuerza|energia|ataque)/ },
+  { t: 'regen', r: /regenera|se cura|curacion|sana sus heridas|recupera (vida|salud)|sanar/ },
+  { t: 'revivir', r: /revive|resucit|renace|vuelve a la vida|fenix/ },
+  { t: 'veneno', r: /veneno|sangrad|quemadura|corrosi|maldicion|plaga|incinera/ },
+  { t: 'escudo', r: /escudo|barrera|cupula|campo de fuerza|protege/ },
+  { t: 'aturdir', r: /congela|paraliza|aturd|petrific|encadena|\bsella|inmoviliza|hipnotiz/ },
+  { t: 'reflejo', r: /refleja|contraataque|devuelve (el )?(dano|golpe)|espinas/ },
+  { t: 'furia', r: /furia|berserk|enfurece|crece|cada vez mas fuerte|aument[ae] (su|la) (poder|fuerza)|adrenalina|se fortalece/ },
+  { t: 'fase', r: /intangible|teletransport|\bfase\b|etereo|invisible|desaparece/ },
+  { t: 'retroceso', r: /represalia|retroceso|autolesion|pierde vida al atacar/ },
+  { t: 'golpe', r: /./ }   // por defecto: técnica ofensiva
+];
+const TIPOS = HAB.map(x => x.t);
 
 function categoriaDe(st) {
   const o = STATS.map((s, i) => ({ i, v: st[s.k] })).sort((a, b) => b.v - a.v);
   if (o[0].v - o[5].v < 12) return 'Equilibrado';
   return o[0].v - o[1].v <= 8 ? `${BASE[o[0].i]}-${BASE[o[1].i]}` : BASE[o[0].i];
 }
-// Cierra cualquier evaluación (local o IA): aplica el tope, calcula puntos y rango
-function cerrar({ stats, categoria, veredicto, fuente }) {
-  let suma = STATS.reduce((a, s) => a + stats[s.k], 0);
-  if (suma > TOPE) { STATS.forEach(s => stats[s.k] = clamp(stats[s.k] * TOPE / suma, 0, 100, 40)); suma = STATS.reduce((a, s) => a + stats[s.k], 0); }
-  const puntosTotales = Math.round(suma * 3);
-  return { stats, categoria: categoria || categoriaDe(stats), puntosTotales, rango: rangoDe(puntosTotales), veredicto, fuente };
+function cerrar(x) {
+  const suma = STATS.reduce((a, s) => a + x.stats[s.k], 0), pot = x.habilidades.reduce((a, h) => a + h.p, 0);
+  const puntosTotales = suma * 3 + pot * 25;
+  return { ...x, categoria: x.categoria || categoriaDe(x.stats), puntosTotales, rango: rangoDe(puntosTotales) };
 }
-
-function evaluarLocal(nombre, desc) {
-  const t = norm(desc), words = t.split(/\s+/).filter(Boolean).length;
-  const cuenta = src => (t.match(new RegExp(src, 'g')) || []).length;
-  const boost = Math.min(3, INTENS.reduce((n, w) => n + cuenta('\\b' + w), 0));
-  const raw = STATS.map(s => Math.min(9, s.w.reduce((n, w) => n + Math.min(2, cuenta('\\b' + w)), 0)));
-  DEBILES.forEach(([src, k]) => { if (cuenta(src)) raw[STATS.findIndex(s => s.k === k)] -= 1; });
-  const sc = raw.map(r => (r >= 0 ? 30 + 16 * Math.sqrt(r) : 30 + 8 * r) * (r > 0 ? 1 + .05 * boost : 1));
-  // «no tiene magia», «sin fuerza»…: el atributo queda en 0 y su parte del presupuesto se reparte entre los demás
-  const nulos = STATS.map(s => new RegExp('(\\bsin|\\bcarece\\b[^.,;]{0,25}\\bde|\\bno (tiene|posee|usa|domina|conoce|sabe usar|puede usar))\\s+(nada de |ninguna |ningun |la |el |toda |todo )?' + s.k + '\\b|\\b' + s.k + '\\s+(nula|nulo|inexistente|=\\s*0|\\(0\\))').test(t));
-  nulos.forEach((n, i) => { if (n) sc[i] = 0; });
-  let total = 220 + 160 * Math.min(1, words / 120);              // más detalle, más presupuesto
-  const dioses = DIOS.filter(w => cuenta('\\b' + w)).length;
-  if (dioses) total *= Math.pow(.8, Math.min(2, dioses));         // poderes ilimitados se recortan
-  const conDefecto = /debilidad|defecto|limitacion|punto debil/.test(t);
-  if (conDefecto) total *= 1.05;                                  // bonus por declarar defectos
-  const f = total / sc.reduce((a, b) => a + b, 0), stats = {};
-  STATS.forEach((s, i) => stats[s.k] = nulos[i] ? 0 : clamp(sc[i] * f, 5, 100, 40));
-  const o = [...STATS].sort((a, b) => stats[b.k] - stats[a.k]);
-  let v = `Destaca en ${o[0].n.toLowerCase()} (${stats[o[0].k]}) y flaquea en ${o[5].n.toLowerCase()} (${stats[o[5].k]}).`;
-  const sinN = STATS.filter((s, i) => nulos[i]).map(s => s.n.toLowerCase());
-  if (sinN.length) v += ' Sin ' + sinN.join(' ni ') + '.';
-  if (dioses) v += ' Poderes sin límites: el juez recorta su potencial.';
-  else if (!conDefecto) v += ' No declara debilidades; añadir alguna da puntos.';
-  if (words < 40) v += ' Descripción corta: más detalle sube su presupuesto.';
-  return cerrar({ stats, veredicto: v, fuente: 'local' });
+// Aplica los topes pase lo que pase (IA o local)
+function sanear(base, d, fuente) {
+  const stats = {}; let bono = 0;
+  STATS.forEach(s => { const b = base[s.k]; stats[s.k] = clamp(d.stats?.[s.k], b, Math.min(100, b + BONO_STAT), b); bono += stats[s.k] - b; });
+  if (bono > BONO_TOTAL) STATS.forEach(s => stats[s.k] = base[s.k] + Math.floor((stats[s.k] - base[s.k]) * BONO_TOTAL / bono));
+  let pot = 0;
+  const habilidades = (Array.isArray(d.habilidades) ? d.habilidades : []).slice(0, MAX_HAB).filter(x => x && TIPOS.includes(x.t)).map(x => {
+    const p = Math.min(clamp(x.p, 1, 5, 2), Math.max(1, MAX_POT - pot)); pot += p;
+    return { n: String(x.n || 'Habilidad').slice(0, 40), t: x.t, p };
+  });
+  return cerrar({ stats, habilidades, categoria: d.categoria && String(d.categoria).slice(0, 40), veredicto: String(d.veredicto || '').slice(0, 250), fuente });
 }
-
-/* Contrato de la Cloud Function (CLASSIFY_ENDPOINT): recibe {nombre, descripcion} y devuelve
-   {categoria?, veredicto, stats:{fuerza,velocidad,inteligencia,resistencia,magia,voluntad}} con valores 0-100. */
-async function evaluar(nombre, descripcion) {
+function evaluarLocal(base, habsIn) {
+  const habilidades = habsIn.slice(0, MAX_HAB).map(h => {
+    const t = norm(h.nombre + ' ' + h.descripcion);
+    return { n: h.nombre, t: HAB.find(x => x.r.test(t)).t, p: 2 };
+  });
+  return sanear(base, { stats: base, habilidades, veredicto: 'Evaluación local: sin IA no hay bonus a los atributos.' }, 'local');
+}
+/* Contrato de la función: recibe {nombre, descripcion, stats, habilidades:[{nombre,descripcion}]}
+   y devuelve {stats, habilidades:[{n,t,p}], categoria, veredicto} */
+async function evaluar(nombre, descripcion, base, habsIn) {
   if (CLASSIFY_ENDPOINT) {
     try {
-      const r = await fetch(CLASSIFY_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre, descripcion }) });
+      const r = await fetch(CLASSIFY_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre, descripcion, stats: base, habilidades: habsIn }) });
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      const d = await r.json(), src = d.stats || d, stats = {};
-      STATS.forEach(s => stats[s.k] = clamp(src[s.k], 1, 100, 40));
-      return cerrar({ stats, categoria: d.categoria && String(d.categoria).slice(0, 40), veredicto: String(d.veredicto || '').slice(0, 200), fuente: 'ia' });
+      return sanear(base, await r.json(), 'ia');
     } catch (e) { console.warn('IA no disponible, se usa el juez local:', e); }
   }
-  return evaluarLocal(nombre, descripcion);
+  return evaluarLocal(base, habsIn);
 }
-
-/* ---------- Habilidades (se leen de la descripción) ---------- */
-const HAB = [
-  { t: 'drenar', n: 'Drenar poder', r: /(divid|reduc|mitad|absorb|rob[ao]|drena|debilita|consume)[^.]{0,45}(poder|fuerza|energia|ataque)/ },
-  { t: 'regen', n: 'Regeneración', r: /regenera|se cura|curacion|sana sus heridas|recupera (vida|salud)|sanar/ },
-  { t: 'revivir', n: 'Resurrección', r: /revive|resucit|renace|vuelve a la vida|fenix/ },
-  { t: 'veneno', n: 'Daño continuo', r: /veneno|sangrad|quemadura|corrosi|maldicion|plaga|incinera/ },
-  { t: 'escudo', n: 'Escudo', r: /escudo|barrera|cupula|campo de fuerza|protege/ },
-  { t: 'aturdir', n: 'Control', r: /congela|paraliza|aturd|petrific|encadena|\bsella|inmoviliza|hipnotiz/ },
-  { t: 'reflejo', n: 'Contraataque', r: /refleja|contraataque|devuelve (el )?(dano|golpe)|espinas/ },
-  { t: 'furia', n: 'Furia creciente', r: /furia|berserk|enfurece|crece|cada vez mas fuerte|aument[ae] (su|la) (poder|fuerza)|adrenalina|se fortalece/ },
-  { t: 'fase', n: 'Intangible', r: /intangible|teletransport|\bfase\b|etereo|invisible|desaparece/ },
-  { t: 'retroceso', n: 'Retroceso', r: /represalia|retroceso|recibe (un |una )?(dano|golpe)|autolesion|pierde vida al atacar/ }
-];
-const MAX_HAB = 4;   // tope para que nadie gane solo acumulando palabras clave
-function habilidades(oc) {
-  const g = oc.evaluacionIA?.habilidades, t = norm(oc.descripcion || '');
-  const ids = Array.isArray(g) && g.length ? g.map(String) : HAB.filter(x => x.r.test(t)).map(x => x.t);
-  return HAB.filter(x => ids.includes(x.t)).slice(0, MAX_HAB);
+function habilidades(oc) {   // [{n, t, p}]; acepta personajes antiguos con ids de texto
+  const h = oc.evaluacionIA?.habilidades;
+  return (Array.isArray(h) ? h : []).map(x => typeof x === 'string' ? { n: x, t: x, p: 3 } : x)
+    .filter(x => x && TIPOS.includes(x.t)).slice(0, MAX_HAB).map(x => ({ n: String(x.n).slice(0, 40), t: x.t, p: clamp(x.p, 1, 5, 3) }));
 }
 
 /* ---------- Simulador: un tick por segundo, hasta 60 s ---------- */
-const lim = (x, a, b) => Math.min(b, Math.max(a, x));
 function luchador(oc) {
-  const s = getStats(oc), hs = habilidades(oc), hp = 200 + s.resistencia * 6 + s.voluntad * 2;
-  const atk = Math.max(s.fuerza, s.magia) * .85 + Math.min(s.fuerza, s.magia) * .15 + s.inteligencia * .15;   // vale tanto el físico como la magia
-  return { nombre: oc.nombreOC, s, hn: hs.map(x => x.n), hab: hs.map(x => x.t), max: hp, hp, atk, atk0: atk, escudo: 0, stun: 0, revivio: false, hecho: 0, carga: false,
-           tiene(t) { return this.hab.includes(t); } };
+  const s = getStats(oc), hs = habilidades(oc), pot = {};
+  hs.forEach(x => pot[x.t] = Math.max(pot[x.t] || 0, x.p));
+  const hp = 200 + s.resistencia * 6 + s.voluntad * 2;
+  const atk = Math.max(s.fuerza, s.magia) * .85 + Math.min(s.fuerza, s.magia) * .15 + s.inteligencia * .15;
+  return { nombre: oc.nombreOC, s, hn: hs.map(x => x.n), hab: Object.keys(pot), pot, max: hp, hp, atk, atk0: atk, escudo: 0, stun: 0, revivio: false, hecho: 0, carga: false,
+           k(t) { return (this.pot[t] || 0) / 3; },      // potencia 3 = efecto estándar (1.0)
+           tiene(t) { return !!this.pot[t]; } };
 }
 function golpe(f, e, t) {
   if (f.stun > 0) return 0;
-  const esq = lim((e.s.velocidad - f.s.velocidad) / 200 + .1, .05, .6) + (e.tiene('fase') ? .15 : 0);
+  const esq = Math.min(.75, lim((e.s.velocidad - f.s.velocidad) / 200 + .1, .05, .6) + .15 * e.k('fase'));
   if (Math.random() < esq) return 0;
   const cargado = f.carga; f.carga = false;
-  let d = f.atk * (cargado ? 1.3 : 1) * (f.tiene('furia') ? 1 + .02 * t : 1) * (f.hp < f.max * .3 ? 1 + f.s.voluntad / 500 : 1) * (.9 + Math.random() * .2);
+  let d = f.atk * (cargado ? 1.3 : 1) * (1 + .02 * f.k('furia') * t) * (f.hp < f.max * .3 ? 1 + f.s.voluntad / 500 : 1) * (.9 + Math.random() * .2);
   if (Math.random() < f.s.inteligencia / 400) d *= 1.5;
-  return d * 100 / (100 + e.s.resistencia * .8);          // la resistencia reduce cada impacto
+  return d * 100 / (100 + e.s.resistencia * .8);
+}
+function tecnica(f, e, t) {   // técnica especial cada 4 s: no se esquiva
+  if (!f.tiene('golpe') || t % 4 || f.stun > 0) return 0;
+  return f.atk * .6 * f.k('golpe') * 100 / (100 + e.s.resistencia * .8);
 }
 function herir(f, d) { const abs = Math.min(f.escudo, d); f.escudo -= abs; f.hp -= d - abs; }
 const pct = f => Math.max(0, Math.round(f.hp / f.max * 100));
@@ -355,27 +358,30 @@ function simular(A, B) {
   let seg = 0;
   for (let t = 1; t <= 60 && a.hp > 0 && b.hp > 0; t++) {
     seg = t;
-    // Los drenajes se calculan a la vez con el poder previo, para que ninguno tenga ventaja por el orden
-    const rob = pares.map(([f, e]) => f.tiene('drenar') && t % 5 === 0 ? Math.max(0, e.atk - e.atk0 * .1) / 2 : 0);
+    const rob = pares.map(([f, e]) => f.tiene('drenar') && t % 5 === 0 ? Math.max(0, e.atk - e.atk0 * .1) * lim(.5 * f.k('drenar'), 0, .8) : 0);
     pares.forEach(([f, e], i) => {
-      if (rob[i] > 1) { e.atk -= rob[i]; f.atk += rob[i]; log.push(`${t} s: ${f.nombre} divide el poder de ${e.nombre} y se queda con esa mitad.`); }
+      if (rob[i] > 1) { e.atk -= rob[i]; f.atk += rob[i]; log.push(`${t} s: ${f.nombre} divide el poder de ${e.nombre} y se queda con esa parte.`); }
     });
     for (const [f, e] of pares) {
-      if (f.tiene('escudo') && (t === 1 || t % 10 === 0)) f.escudo = f.max * .2;
-      if (f.tiene('aturdir') && t % 8 === 0) { e.stun = 2; log.push(`${t} s: ${f.nombre} inmoviliza a ${e.nombre} durante 2 s.`); }
+      if (f.tiene('escudo') && (t === 1 || t % 10 === 0)) f.escudo = f.max * .2 * f.k('escudo');
+      if (f.tiene('aturdir') && t % 8 === 0) { e.stun = f.k('aturdir') > 1 ? 2 : 1; log.push(`${t} s: ${f.nombre} inmoviliza a ${e.nombre} durante ${e.stun} s.`); }
     }
-    const da = golpe(a, b, t), db = golpe(b, a, t);
+    const ta = tecnica(a, b, t), tb = tecnica(b, a, t);
+    if (t % 20 === 4) [[a, ta], [b, tb]].forEach(([f, x]) => { if (x) log.push(`${t} s: ${f.nombre} lanza su técnica especial (${Math.round(x)} de daño).`); });
+    const da = golpe(a, b, t) + ta, db = golpe(b, a, t) + tb;
     herir(b, da); herir(a, db); a.hecho += da; b.hecho += db;
-    // Retroceso: cada golpe le cuesta un 12% del daño causado, pero el siguiente pega un 30% más
     for (const [f, dm] of [[a, da], [b, db]]) if (f.tiene('retroceso') && dm > 0) { f.hp -= dm * .12; f.carga = true; }
-    if (b.tiene('reflejo')) herir(a, da * .25);
-    if (a.tiene('reflejo')) herir(b, db * .25);
+    if (b.tiene('reflejo')) herir(a, da * .25 * b.k('reflejo'));
+    if (a.tiene('reflejo')) herir(b, db * .25 * a.k('reflejo'));
     for (const [f, e] of pares) {
-      if (f.tiene('veneno')) { e.hp -= e.max * .015; f.hecho += e.max * .015; }
-      if (f.tiene('regen') && f.hp > 0) f.hp = Math.min(f.max, f.hp + f.max * .02);
+      if (f.tiene('veneno')) { const v = e.max * .015 * f.k('veneno'); e.hp -= v; f.hecho += v; }
+      if (f.tiene('regen') && f.hp > 0) f.hp = Math.min(f.max, f.hp + f.max * .02 * f.k('regen'));
       f.stun = Math.max(0, f.stun - 1);
     }
-    for (const f of [a, b]) if (f.hp <= 0 && f.tiene('revivir') && !f.revivio) { f.hp = f.max * .3; f.revivio = true; log.push(`${t} s: ${f.nombre} resucita con el 30% de su vida.`); }
+    for (const f of [a, b]) if (f.hp <= 0 && f.tiene('revivir') && !f.revivio) {
+      const pc = lim(.3 * f.k('revivir'), .1, .6); f.hp = f.max * pc; f.revivio = true;
+      log.push(`${t} s: ${f.nombre} resucita con el ${Math.round(pc * 100)}% de su vida.`);
+    }
     if (t % 15 === 0) { hist.push({ t, a: pct(a), b: pct(b) }); log.push(`${t} s: ${a.nombre} ${pct(a)}% de vida, ${b.nombre} ${pct(b)}%.`); }
   }
   const ko = a.hp <= 0 || b.hp <= 0;
@@ -422,7 +428,7 @@ function ocCard(oc, conRadar = true) {
     h('div', { class: 'body' },
       h('h3', { textContent: oc.nombreOC }),
       h('div', { class: 'tags' }, h('span', { class: 'tag', textContent: s.categoria || 'Sin categoría' }), h('span', { class: 'tag rank', textContent: 'Rango ' + rango })),
-      habilidades(oc).length ? h('div', { class: 'tags' }, ...habilidades(oc).map(x => h('span', { class: 'tag hab', textContent: x.n }))) : '',
+      habilidades(oc).length ? h('div', { class: 'tags' }, ...habilidades(oc).map(x => h('span', { class: 'tag hab', textContent: x.n + ' ' + '★'.repeat(x.p) }))) : '',
       h('span', { class: 'meta', textContent: 'Creador: ' + oc.usuario + ' · evaluado por ' + (s.fuente === 'ia' ? 'IA' : 'juez local') }),
       h('span', { class: 'power', textContent: pts + ' pts de poder' }),
       conRadar ? radar([{ stats: st, cls: 'a' }], true) : '',
@@ -455,20 +461,53 @@ document.querySelectorAll('.nav-btn').forEach(btn => btn.addEventListener('click
 }));
 
 /* ---------- Crear ---------- */
+function contarPts() {
+  const s = STATS.reduce((a, x) => a + (Number($('st_' + x.k).value) || 0), 0);
+  $('ptsRest').textContent = PUNTOS - s; $('ptsRest').classList.toggle('neg', s > PUNTOS);
+}
+function leerStats() {
+  const st = {}; let suma = 0;
+  for (const s of STATS) {
+    const v = Number($('st_' + s.k).value);
+    if (!Number.isFinite(v) || v < SMIN || v > SMAX) { toast(`${s.n}: debe estar entre ${SMIN} y ${SMAX}.`, true); return null; }
+    st[s.k] = Math.round(v); suma += st[s.k];
+  }
+  if (suma > PUNTOS) { toast(`Te pasas ${suma - PUNTOS} puntos de atributos.`, true); return null; }
+  return st;
+}
+function addHab() {
+  if ($('habInputs').children.length >= MAX_HAB) return toast(`Máximo ${MAX_HAB} habilidades.`, true);
+  const row = h('div', { class: 'hab-row' },
+    h('input', { placeholder: 'Nombre de la habilidad', maxLength: 30 }),
+    h('textarea', { placeholder: 'Qué hace, cómo funciona y qué límites o costes tiene', maxLength: 300 }),
+    h('button', { type: 'button', class: 'btn ghost', textContent: 'Quitar', on: { click: () => row.remove() } }));
+  $('habInputs').append(row);
+}
+const leerHabs = () => [...$('habInputs').children]
+  .map(r => ({ nombre: r.children[0].value.trim(), descripcion: r.children[1].value.trim() })).filter(x => x.nombre);
+function initCrear() {
+  $('statsInputs').replaceChildren(...STATS.map(s => h('div', {}, h('label', { textContent: s.n, htmlFor: 'st_' + s.k }),
+    h('input', { id: 'st_' + s.k, type: 'number', min: SMIN, max: SMAX, value: 50, on: { input: contarPts } }))));
+  $('habInputs').replaceChildren(); contarPts();
+}
+$('btnAddHab').addEventListener('click', addHab);
+initCrear();
+
 $('formCrear').addEventListener('submit', async e => {
   e.preventDefault();
+  const statsBase = leerStats(); if (!statsBase) return;
   const btn = $('btnGuardar'); btn.disabled = true; btn.textContent = 'Evaluando…';
   try {
     const usuario = $('inputUsuario').value.trim(), nombreOC = $('inputNombreOC').value.trim();
-    const descripcion = $('inputDescripcion').value.trim();
+    const descripcion = $('inputDescripcion').value.trim(), habsIn = leerHabs();
     const [imagenBase64, passHash] = await Promise.all([
       comprimirImagen($('inputImagen').files[0]), hashPassword(usuario, $('inputPassword').value)]);
-    const evaluacionIA = await evaluar(nombreOC, descripcion);
-    await addDoc(col, { usuario, passHash, nombreOC, descripcion, imagenBase64, evaluacionIA, creadoEn: new Date().toISOString() });
-    personajes = [];   // fuerza a recargar la lista en Combatir y Galería
+    const evaluacionIA = await evaluar(nombreOC, descripcion, statsBase, habsIn);
+    await addDoc(col, { usuario, passHash, nombreOC, descripcion, imagenBase64, statsBase, habsIn, evaluacionIA, creadoEn: new Date().toISOString() });
+    personajes = [];
     toast(`${nombreOC} guardado como ${evaluacionIA.categoria}.`);
     $('resultadoCrear').replaceChildren(ocCard({ usuario, nombreOC, imagenBase64, evaluacionIA }));
-    e.target.reset();
+    e.target.reset(); initCrear();
   } catch (err) {
     console.error(err); toast('No se pudo guardar: ' + err.message, true);
   } finally { btn.disabled = false; btn.textContent = 'Evaluar y guardar'; }
@@ -582,7 +621,7 @@ function renderMios(lista) {
     const guardar = h('button', { class: 'btn', type: 'button', textContent: 'Guardar y reevaluar', on: { click: async ev => {
       ev.target.disabled = true;
       try {
-        const evaluacionIA = await evaluar(nombre.value.trim(), desc.value.trim());
+        const evaluacionIA = await evaluar(nombre.value.trim(), desc.value.trim(), p.statsBase || getStats(p), p.habsIn || []);
         await updateDoc(doc(db, 'personajes', p.id), { nombreOC: nombre.value.trim(), descripcion: desc.value.trim(), evaluacionIA });
         toast('Cambios guardados.'); personajes = [];
       } catch (err) { toast('No se pudo guardar: ' + err.message, true); }
