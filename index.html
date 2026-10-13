@@ -336,26 +336,25 @@ function luchador(oc) {
            k(t) { return (this.pot[t] || 0) / 3; },      // potencia 3 = efecto estándar (1.0)
            tiene(t) { return !!this.pot[t]; } };
 }
-// Función auxiliar para limitar un valor entre un mínimo y un máximo
-function lim(valor, min, max) {
-  return Math.max(min, Math.min(max, valor));
+function lim(val, min, max) {
+  return Math.max(min, Math.min(max, val));
 }
 
 function golpe(f, e, t) {
   if (f.stun > 0) return 0;
-  const esq = Math.min(.75, lim((e.s.velocidad - f.s.velocidad) / 200 + .1, .05, .6) + .15 - e.k('fase'));
+  
+  const esq = Math.min(.75, lim((e.s.velocidad - f.s.velocidad) / 200 + .1, .05, .6) + .15 * e.k('fase'));
   if (Math.random() < esq) return 0;
+  
   const cargado = f.carga; 
   f.carga = false;
-  let d = f.atk(cargado ? 1.3 : 1) * (1 + .02 * f.k('furia') * t) * (f.hp < f.max * .3 ? 1 + f.s.voluntad / 500 : 1) * (.9 + Math.random() * .2); 
-  if (Math.random() < f.s.inteligencia / 400) d *= 1.5;
-  return d - 100 / (100 + e.s.resistencia * .8);
-}
-
-function tecnica(f, e, t) {   // técnica especial cada 4 s: no se esquiva
-  if (!f.tiene('golpe') || t % 4 || f.stun > 0) return 0;
   
-  return f.atk * .6 * f.k('golpe') * 100 / (100 + e.s.resistencia * .8);
+  const fnAtk = typeof f.atk === 'function' ? f.atk : (mult) => (f.s.fuerza || 30) * mult;
+  let d = fnAtk(cargado ? 1.3 : 1) * (1 + .02 * f.k('furia') * t) * (f.hp < f.max * .3 ? 1 + f.s.voluntad / 500 : 1) * (.9 + Math.random() * .2);
+  
+  if (Math.random() < f.s.inteligencia / 400) d *= 1.5;
+  
+  return d * (100 / (100 + e.s.resistencia * .8));
 }
 function tecnica(f, e, t) {   // técnica especial cada 4 s: no se esquiva
   if (!f.tiene('golpe') || t % 4 || f.stun > 0) return 0;
