@@ -37,9 +37,9 @@ exports.handler = async function(event, context) {
         "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant", // Modelo oficial estándar de Groq (no gasta tokens pensando)
+        model: "llama-3.3-70b-versatile", // Modelo gratuito actual y estable en Groq
         temperature: 0.8,
-        max_tokens: 1000, // Margen amplio para evitar cortes de respuesta
+        max_tokens: 1000,
         messages: [
           {
             role: "system",
@@ -64,10 +64,8 @@ exports.handler = async function(event, context) {
     
     const j = await r.json();
 
-    // Extraer contenido
     let cronica = j.choices?.[0]?.message?.content?.trim();
 
-    // Fallback por si acaso el contenido viniera en el objeto de razonamiento
     if (!cronica && j.choices?.[0]?.message?.reasoning) {
       cronica = j.choices[0].message.reasoning.trim();
     }
