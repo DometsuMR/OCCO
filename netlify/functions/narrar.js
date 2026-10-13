@@ -24,8 +24,17 @@ exports.handler = async function(event, context) {
       `VIDA FINAL: ${JSON.stringify(vidaFinal || {})}`,
     ].join("\n");
 
-    // Netlify inyecta de forma segura la variable de entorno en process.env
+    // --- DEPURACIÓN DE LA CLAVE ---
     const apiKey = process.env.OPENAI_API_KEY;
+    console.log("--- DEBUGGING OPENAI KEY ---");
+    console.log("¿La variable process.env.OPENAI_API_KEY existe?:", apiKey ? "SÍ" : "NO");
+    if (apiKey) {
+      console.log("Longitud de la clave:", apiKey.length);
+      console.log("Empieza por:", apiKey.slice(0, 5) + "...");
+    }
+    console.log("----------------------------");
+    // -----------------------------
+
     if (!apiKey) {
       throw new Error("Falta la clave de OpenAI en el servidor de Netlify");
     }
@@ -56,7 +65,12 @@ exports.handler = async function(event, context) {
       }),
     });
 
-    if (!r.ok) throw new Error("OpenAI respondió con estado " + r.status);
+    if (!r.ok) {
+      const errorBody = await r.text();
+      console.error("Error devuelto por OpenAI:", r.status, errorBody);
+      throw new Error("OpenAI respondió con estado " + r.status);
+    }
+    
     const j = await r.json();
     const cronica = j.choices?.[0]?.message?.content?.trim();
     if (!cronica) throw new Error("Respuesta vacía de OpenAI");
@@ -68,10 +82,10 @@ exports.handler = async function(event, context) {
     };
 
   } catch (e) {
-    console.error(e);
+    console.error("Error general en la función:", e);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "No se pudo narrar" }),
+      body: JSON.stringify({ error: "No se pudo narrar: " + e.message }),
     };
   }
 };
