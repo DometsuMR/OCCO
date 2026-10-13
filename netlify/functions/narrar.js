@@ -37,7 +37,7 @@ exports.handler = async function(event, context) {
         "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile", // Modelo gratuito actual y estable en Groq
+        model: "llama-3.1-8b-instant",
         temperature: 0.8,
         max_tokens: 1000,
         messages: [
